@@ -1,0 +1,74 @@
+Manual per desplegar API ASP.NET Core com a servei de Systemd en sistemes LINUX
+
+
+Per desplegar en un sistema Linux una API desenvolupada amb ASP.NET Core, cal realitzar els següents passos:
+
+1.	Modificar fitxer *.csproj: és necessari modificar aquest fitxer (ubicat a l’arrel de projecte) per tal de que, al compilar, ens generi totes les DLLs que el projecte necessita per funcionar. Cal afegir les següents línies:
+
+	<PropertyGroup>               
+    		<PublishWithAspNetCoreTargetManifest>false</PublishWithAspNetCoreTargetManifest>
+	</PropertyGroup>
+
+Si no afegim aquestes línies, el projecte genera un manifest amb un llistat de totes les seves dependències en comptes d’afegir-les. 
+
+En un entorn de desenvolupament, l’SDK ja inclou les dependències, així que amb consultar el manifest hi ha prou, però en un entorn de producció on només hi ha el runtime no tenim les dependències, per tant amb nomes llistar-les no en fem prou i dona error. 
+
+Al afegir aquestes línies, s’afegeixen les DLLs necessàries i el runtime les pot utilitzar.
+
+2. Compilar el projecte: mitjançant la següent comanda:
+
+                 dotnet publish --configuration Release
+
+Això ens generarà la carpeta bin/Release/netcoreapp2.0/publish . Cal crear un .zip amb els continguts de la carpeta publish.
+
+3. Penjar el fitxer.zip al servidor i descomprimir-lo: ara, cal penjar al servidor el fitxer generat al pas anterior. Es pot penjar a /home/girosystem/services/<nom_client>. Un cop copiat a la carpeta, cal descomprimir el seu contingut.
+
+
+4. Crear fitxer de servei de systemd: cal executar la següent comanda:
+
+              sudo nano /etc/systemd/system/aspnetcore_api.service
+
+
+El nom del fitxer és indiferent, però podria ser, per exemple, <nom_client>.service.
+
+Un cop creat, cal afegir els següents continguts:
+
+[Unit]
+Description=Example .NET Web API App running on CentOS 7
+
+[Service]
+WorkingDirectory=/var/aspnetcore/hellomvc
+ExecStart=/usr/local/bin/dotnet /var/aspnetcore/hellomvc/hellomvc.dll
+Restart=always
+# Restart service after 10 seconds if the dotnet service crashes:
+RestartSec=10
+SyslogIdentifier=dotnet-example
+User=apache
+Environment=ASPNETCORE_ENVIRONMENT=Production 
+
+[Install]
+WantedBy=multi-user.target
+
+Cal editar els paràmetres WorkingDirectory i ExecStart. A WorkingDirectory, cal especificar la ruta con hem copiat els continguts de la carpeta publish generada al compilar el projecte. En el nostre cas, ho hem copiat a /home/girosystem/services/<nom_client>, per tant cal especificar aquesta ruta.
+
+El paràmetre ExecStart consta de dos rutes: la del binari de dotnet i la DLL principal del projecte. Per saber la ruta del binari de dotnet, ho podem fer amb la comanda which:
+
+
+
+
+
+
+Com es pot veure a la captura, which ens mostra la ruta on està ubicat un executable.
+
+El Segon paràmetre és la ruta entrada anteriorment (/home/girosystem/services/<nom_client>) juntament amb el nom de la DLL. Per exemple, si el projecte és “DispuigAPI”, la ruta serà /home/girocdsystem/services/dispuig/DispuigAPI.dll.
+
+La resta de paràmetres del fitxer generat, com el nom del servei, es poden modificar com es desitji.
+
+5. Activar el servei: un cop afegit el fitxer, cal activar el servei amb la següent comanda:
+
+systemctl enable aspnetcore_api.service
+
+Llavors només cal inicialitzar el servei i comprovar el seu estat amb les següents comandes:
+
+systemctl start aspnetcore_api.service
+systemctl status aspnetcore_api.service
